@@ -1,0 +1,252 @@
+{
+  "info": {
+    "name": "Mobile App Backend (RestDB)",
+    "description": "API for the Power Soft restaurant mobile app. Runs on the SQL Server machine.\n\nUsage:\n1. Set the `baseUrl` collection variable (default http://localhost:3000).\n2. Run **Login** with a supervisor user. The access token is saved to `accessToken` automatically.\n3. Run **Backup**, then **Execute Mission 1** (the mission only runs if the last backup was taken today).\n\nBackup and Mission 1 can take minutes; keep Postman's request timeout at 0 (no timeout).",
+    "schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json"
+  },
+  "auth": {
+    "type": "bearer",
+    "bearer": [{ "key": "token", "value": "{{accessToken}}", "type": "string" }]
+  },
+  "variable": [
+    { "key": "baseUrl", "value": "http://localhost:3000", "type": "string" },
+    { "key": "accessToken", "value": "", "type": "string" }
+  ],
+  "item": [
+    {
+      "name": "Login",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Status is 200', () => pm.response.to.have.status(200));",
+              "",
+              "if (pm.response.code === 200) {",
+              "  const body = pm.response.json();",
+              "  pm.collectionVariables.set('accessToken', body.accessToken);",
+              "  console.log(`Logged in as ${body.user.username} (supervisor: ${body.user.isSupervisor})`);",
+              "}"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "auth": { "type": "noauth" },
+        "method": "POST",
+        "header": [{ "key": "Content-Type", "value": "application/json" }],
+        "body": {
+          "mode": "raw",
+          "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"\"\n}",
+          "options": { "raw": { "language": "json" } }
+        },
+        "url": { "raw": "{{baseUrl}}/login", "host": ["{{baseUrl}}"], "path": ["login"] },
+        "description": "Authenticates against `JS_Users` (`Usr_NM` / `Pass`) and returns a JWT valid for `JWT_EXPIRES_IN` (default 12h).\n\n- 401: wrong username or password\n- 403: user is disabled (`Usr_Stat = 0`)\n- 400: missing / invalid fields\n\nThe test script stores `accessToken` in the collection variables, so Backup and Mission 1 work right after."
+      },
+      "response": [
+        {
+          "name": "200 - Success",
+          "originalRequest": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"********\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/login", "host": ["{{baseUrl}}"], "path": ["login"] }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+          "body": "{\n  \"accessToken\": \"eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...\",\n  \"user\": {\n    \"id\": 1,\n    \"username\": \"admin\",\n    \"name\": \"مدير النظام\",\n    \"isSupervisor\": true\n  }\n}"
+        },
+        {
+          "name": "401 - Wrong credentials",
+          "originalRequest": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"admin\",\n  \"password\": \"wrong\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/login", "host": ["{{baseUrl}}"], "path": ["login"] }
+          },
+          "status": "Unauthorized",
+          "code": 401,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+          "body": "{\n  \"message\": \"Invalid username or password\",\n  \"error\": \"Unauthorized\",\n  \"statusCode\": 401\n}"
+        },
+        {
+          "name": "403 - Disabled user",
+          "originalRequest": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{\n  \"username\": \"107\",\n  \"password\": \"********\"\n}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/login", "host": ["{{baseUrl}}"], "path": ["login"] }
+          },
+          "status": "Forbidden",
+          "code": 403,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+          "body": "{\n  \"message\": \"This user account is disabled\",\n  \"error\": \"Forbidden\",\n  \"statusCode\": 403\n}"
+        },
+        {
+          "name": "400 - Validation error",
+          "originalRequest": {
+            "method": "POST",
+            "header": [{ "key": "Content-Type", "value": "application/json" }],
+            "body": { "mode": "raw", "raw": "{}", "options": { "raw": { "language": "json" } } },
+            "url": { "raw": "{{baseUrl}}/login", "host": ["{{baseUrl}}"], "path": ["login"] }
+          },
+          "status": "Bad Request",
+          "code": 400,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+          "body": "{\n  \"message\": [\n    \"username should not be empty\",\n    \"username must be a string\",\n    \"password should not be empty\",\n    \"password must be a string\"\n  ],\n  \"error\": \"Bad Request\",\n  \"statusCode\": 400\n}"
+        }
+      ]
+    },
+    {
+      "name": "Backup",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "pm.test('Backup succeeded and was verified', () => {",
+              "  pm.response.to.have.status(200);",
+              "  pm.expect(pm.response.json().verified).to.eql(true);",
+              "});"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": { "raw": "{{baseUrl}}/backup", "host": ["{{baseUrl}}"], "path": ["backup"] },
+        "description": "Supervisor only. Runs a full `BACKUP DATABASE ... WITH CHECKSUM` to `BACKUP_DIR` (or SQL Server's default backup folder), verifies the file with `RESTORE VERIFYONLY`, and only then sets `JS_Config.Last_Bak_Date` to now.\n\nA successful backup is what allows **Execute Mission 1** to run for the rest of the day.\n\n- 401: missing / invalid / expired token\n- 403: user is not a supervisor\n- 409: another backup is already running\n- 500: backup or verification failed (`Last_Bak_Date` is not changed)"
+      },
+      "response": [
+        {
+          "name": "200 - Success",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/backup", "host": ["{{baseUrl}}"], "path": ["backup"] }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+          "body": "{\n  \"success\": true,\n  \"database\": \"RestDB\",\n  \"filePath\": \"C:\\\\Program Files\\\\Microsoft SQL Server\\\\MSSQL12.MSSQLSERVER\\\\MSSQL\\\\Backup\\\\RestDB_20261001_003005.bak\",\n  \"sizeBytes\": 1731264512,\n  \"verified\": true,\n  \"lastBackupDate\": \"01/10/2026 12:31:02 AM\",\n  \"durationMs\": 57120\n}"
+        },
+        {
+          "name": "403 - Not a supervisor",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/backup", "host": ["{{baseUrl}}"], "path": ["backup"] }
+          },
+          "status": "Forbidden",
+          "code": 403,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+          "body": "{\n  \"message\": \"Only supervisor users can perform this operation\",\n  \"error\": \"Forbidden\",\n  \"statusCode\": 403\n}"
+        },
+        {
+          "name": "409 - Already running",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/backup", "host": ["{{baseUrl}}"], "path": ["backup"] }
+          },
+          "status": "Conflict",
+          "code": 409,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+          "body": "{\n  \"message\": \"A backup is already in progress\",\n  \"error\": \"Conflict\",\n  \"statusCode\": 409\n}"
+        },
+        {
+          "name": "500 - Backup failed",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/backup", "host": ["{{baseUrl}}"], "path": ["backup"] }
+          },
+          "status": "Internal Server Error",
+          "code": 500,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+          "body": "{\n  \"message\": \"Backup failed: Cannot open backup device 'D:\\\\Backups\\\\RestDB_20261001_003005.bak'. Operating system error 5(Access is denied.). | BACKUP DATABASE is terminating abnormally.\",\n  \"error\": \"Internal Server Error\",\n  \"statusCode\": 500\n}"
+        }
+      ]
+    },
+    {
+      "name": "Execute Mission 1",
+      "event": [
+        {
+          "listen": "test",
+          "script": {
+            "type": "text/javascript",
+            "exec": [
+              "const body = pm.response.json();",
+              "if (Array.isArray(body.messages)) console.log(body.messages.join('\\n'));",
+              "",
+              "pm.test('Mission 1 succeeded', () => pm.response.to.have.status(200));"
+            ]
+          }
+        }
+      ],
+      "request": {
+        "method": "POST",
+        "header": [],
+        "url": {
+          "raw": "{{baseUrl}}/execute-mission-1",
+          "host": ["{{baseUrl}}"],
+          "path": ["execute-mission-1"]
+        },
+        "description": "**DESTRUCTIVE.** Supervisor only. Runs `src/missions/sql/mission-1.sql`: clears all transactional data (bills, journals, stock movements, shifts, ...), resets product/material quantities, bill counters and table states.\n\nThe script first checks `JS_Config.Last_Bak_Date`; if the last backup was not taken **today** nothing is changed and the API returns 409. All changes run in a single transaction, so any SQL error rolls everything back.\n\n`messages` contains the script's PRINT / DBCC output.\n\n- 401: missing / invalid / expired token\n- 403: user is not a supervisor\n- 409 `BackupRequired`: no backup today, run **Backup** first\n- 409 `Conflict`: mission already running\n- 500 `MissionFailed`: SQL error, transaction rolled back"
+      },
+      "response": [
+        {
+          "name": "200 - Success",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/execute-mission-1", "host": ["{{baseUrl}}"], "path": ["execute-mission-1"] }
+          },
+          "status": "OK",
+          "code": 200,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+          "body": "{\n  \"success\": true,\n  \"messages\": [\n    \"Oct  1 2026 12:31AM\",\n    \"01/10/2026 12:31:02 AM\",\n    \"2026/10/01 12:33:40 AM\",\n    \"✅ آخر نسخة احتياطية تمت اليوم\",\n    \"Checking identity information: current identity value '15234'.\",\n    \"DBCC execution completed. If DBCC printed error messages, contact your system administrator.\",\n    \"Checking identity information: current identity value '15102'.\",\n    \"DBCC execution completed. If DBCC printed error messages, contact your system administrator.\"\n  ],\n  \"durationMs\": 8421\n}"
+        },
+        {
+          "name": "409 - Backup required",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/execute-mission-1", "host": ["{{baseUrl}}"], "path": ["execute-mission-1"] }
+          },
+          "status": "Conflict",
+          "code": 409,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+          "body": "{\n  \"statusCode\": 409,\n  \"error\": \"BackupRequired\",\n  \"message\": \"تم إيقاف التنفيذ: مرّ أكثر من يوم على آخر نسخة احتياطية\",\n  \"messages\": [\n    \"Jul 12 2025 10:44AM\",\n    \"12/07/2025 10:44:13 AM\",\n    \"2026/10/01 12:33:40 AM\",\n    \"❌ آخر نسخة احتياطية ليست اليوم\"\n  ]\n}"
+        },
+        {
+          "name": "500 - Failed and rolled back",
+          "originalRequest": {
+            "method": "POST",
+            "header": [],
+            "url": { "raw": "{{baseUrl}}/execute-mission-1", "host": ["{{baseUrl}}"], "path": ["execute-mission-1"] }
+          },
+          "status": "Internal Server Error",
+          "code": 500,
+          "_postman_previewlanguage": "json",
+          "header": [{ "key": "Content-Type", "value": "application/json; charset=utf-8" }],
+          "body": "{\n  \"statusCode\": 500,\n  \"error\": \"MissionFailed\",\n  \"message\": \"Mission 1 failed; no changes were applied. Transaction (Process ID 57) was deadlocked on lock resources with another process and has been chosen as the deadlock victim. Rerun the transaction.\",\n  \"messages\": [\n    \"Oct  1 2026 12:31AM\",\n    \"01/10/2026 12:31:02 AM\",\n    \"2026/10/01 12:33:40 AM\",\n    \"✅ آخر نسخة احتياطية تمت اليوم\"\n  ]\n}"
+        }
+      ]
+    }
+  ]
+}
